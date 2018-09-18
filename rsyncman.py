@@ -33,7 +33,7 @@ def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expe
         fs_type = get_fs_type(path)[0]
         if expected_fs and expected_fs != fs_type:
             logging.error("ABORTING "+path+": expected fs type does not match expected fs - found: "+fs_type+" expected: "+expected_fs)
-        print command
+        logging.debug("RSYNC command: "+command)
         process = Popen(command,stderr=PIPE,stdout=PIPE,shell=True)
         data = process.communicate()[0]
 
