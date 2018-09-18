@@ -1,0 +1,7 @@
+*~
+*swp
+*.config
+fites/*
+preguntes/*
+temari/*
+*.sqlite
