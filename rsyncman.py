@@ -1,15 +1,43 @@
 #!/usr/bin/python
 
 import os.path
+import getpass
 import sys
 import logging
 import json
 import psutil,os
 import datetime, time
+import socket
 from ConfigParser import SafeConfigParser
 from subprocess import Popen,PIPE,STDOUT
+import smtplib
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEText import MIMEText
+
 
 error_count=0
+
+def sendReportEmail(to_addr, id_host):
+    global error_count
+    global logFile
+
+    from_addr=getpass.getuser()+'@'+socket.gethostname()
+
+    msg = MIMEMultipart()
+    msg['From'] = from_addr
+    msg['To'] = to_addr
+    if error_count > 0:
+        msg['Subject'] = id_host+"-RSYNCMAN-OK"
+    else:
+        msg['Subject'] = id_host+"-RSYNCMAN-ERROR"
+
+    body = "please check "+logFile+" on "+socket.gethostname()
+    msg.attach(MIMEText(body, 'plain'))
+
+    server = smtplib.SMTP('localhost')
+    text = msg.as_string()
+    server.sendmail(from_addr, to_addr, text)
+    server.quit()
 
 # thank god for stackoverflow - https://stackoverflow.com/questions/25283882/determining-the-filesystem-type-from-a-path-in-python
 def get_fs_type(path):
@@ -83,64 +111,77 @@ except Exception, e:
 
 rootLogger.setLevel(0)
 
+try:
+    to_addr=config.get('rsyncman', 'to')
+except:
+    to_addr=''
+try:
+    id_host=config.get('rsyncman', 'host-id')
+except:
+    id_host=socket.gethostname()
+
 if len(config.sections()) > 0:
     for path in config.sections():
-        try:
-            ionice='ionice '+config.get(path, 'ionice').strip('"')+' '
-        except:
-            ionice=''
-        try:
-            expected_fs=config.get(path, 'expected-fs')
-        except:
-            expected_fs=''
-        try:
-            rsyncpath='--rsync-path="'+config.get(path, 'rsync-path').strip('"')+'"'
-        except:
-            rsyncpath=''
-        try:
-            if os.path.isabs(config.get(path, 'check-file')):
-                checkfile=config.get(path, 'check-file')
-            else:
-                checkfile=path+'/'+config.get(path, 'check-file')
-        except:
-            checkfile=path
-        try:
-            if config.getboolean(path, 'delete'):
-                delete='--delete'
-            else:
-                delete=''
-        except:
-            delete=''
-        try:
-            exclude_config_get = config.get(path,'exclude')
+        if path != "rsyncman":
             try:
+                ionice='ionice '+config.get(path, 'ionice').strip('"')+' '
+            except:
+                ionice=''
+            try:
+                expected_fs=config.get(path, 'expected-fs')
+            except:
+                expected_fs=''
+            try:
+                rsyncpath='--rsync-path="'+config.get(path, 'rsync-path').strip('"')+'"'
+            except:
+                rsyncpath=''
+            try:
+                if os.path.isabs(config.get(path, 'check-file')):
+                    checkfile=config.get(path, 'check-file')
+                else:
+                    checkfile=path+'/'+config.get(path, 'check-file')
+            except:
+                checkfile=path
+            try:
+                if config.getboolean(path, 'delete'):
+                    delete='--delete'
+                else:
+                    delete=''
+            except:
+                delete=''
+            try:
+                exclude_config_get = config.get(path,'exclude')
+                try:
+                    exclude=' '
+                    for item in json.loads(exclude_config_get):
+                        exclude+='--exclude '+item+' '
+                except Exception, e:
+                    logging.error("error reading excludes for  "+path+" - ABORTING - "+str(e))
+                    error_count=error_count+1
+                    continue
+            except:
                 exclude=' '
-                for item in json.loads(exclude_config_get):
-                    exclude+='--exclude '+item+' '
+            try:
+                remotepath=config.get(path, 'remote-path')
+            except:
+                remotepath=os.path.dirname(path)
+            try:
+                remote=config.get(path, 'remote').strip('"')
+
             except Exception, e:
-                logging.error("error reading excludes for  "+path+" - ABORTING - "+str(e))
+                logging.error("remote is mandatory, aborting rsync for "+path+" - "+str(e))
                 error_count=error_count+1
                 continue
-        except:
-            exclude=' '
-        try:
-            remotepath=config.get(path, 'remote-path')
-        except:
-            remotepath=os.path.dirname(path)
-        try:
-            remote=config.get(path, 'remote').strip('"')
+            runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs)
 
-        except Exception, e:
-            logging.error("remote is mandatory, aborting rsync for "+path+" - "+str(e))
-            error_count=error_count+1
-            continue
-        runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs)
+            if error_count >0:
+                logging.error("ERROR_COUNT:" + str(error_count))
+                sys.exit(1)
+            else:
+                logging.info("SUCCESS")
 
-        if error_count >0:
-            logging.error("ERROR_COUNT:" + str(error_count))
-            sys.exit(1)
-        else:
-            logging.info("SUCCESS")
+            if to_addr:
+                sendReportEmail(to_addr, id_host)
 
 else:
     logging.error("No config found")
