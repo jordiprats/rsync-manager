@@ -9,6 +9,8 @@ import datetime, time
 from ConfigParser import SafeConfigParser
 from subprocess import Popen,PIPE,STDOUT
 
+error_count=0
+
 # thank god for stackoverflow - https://stackoverflow.com/questions/25283882/determining-the-filesystem-type-from-a-path-in-python
 def get_fs_type(path):
     partition = {}
@@ -27,12 +29,14 @@ def get_fs_type(path):
     return ("unkown","none")
 
 def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs):
+    global error_count
     command=ionice+'rsync -v -a -H -x --numeric-ids '+delete+exclude+rsyncpath+' '+path+' '+remote+':'+remotepath
     if os.path.exists(checkfile):
         logging.info("checkfile found: "+checkfile)
         fs_type = get_fs_type(path)[0]
         if expected_fs and expected_fs != fs_type:
             logging.error("ABORTING "+path+": expected fs type does not match expected fs - found: "+fs_type+" expected: "+expected_fs)
+            error_count=error_count+1
         logging.debug("RSYNC command: "+command)
         process = Popen(command,stderr=PIPE,stdout=PIPE,shell=True)
         data = process.communicate()[0]
@@ -42,10 +46,12 @@ def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expe
 
         if process.returncode!=0:
             logging.error("ERROR found running job for "+path)
+            error_count=error_count+1
         else:
             logging.info(path+" competed successfully")
     else:
         logging.error("ABORTING "+path+": check file does NOT exists: "+checkfile)
+        error_count=error_count+1
 
 try:
     config_file = sys.argv[1]
@@ -113,6 +119,7 @@ if len(config.sections()) > 0:
                     exclude+='--exclude '+item+' '
             except Exception, e:
                 logging.error("error reading excludes for  "+path+" - ABORTING - "+str(e))
+                error_count=error_count+1
                 continue
         except:
             exclude=' '
@@ -125,8 +132,15 @@ if len(config.sections()) > 0:
 
         except Exception, e:
             logging.error("remote is mandatory, aborting rsync for "+path+" - "+str(e))
+            error_count=error_count+1
             continue
         runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs)
+
+        if error_count >0:
+            logging.error("ERROR_COUNT:" + str(error_count))
+            sys.exit(1)
+        else:
+            logging.info("SUCCESS")
 
 else:
     logging.error("No config found")
