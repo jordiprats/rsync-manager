@@ -5,3 +5,4 @@ fites/*
 preguntes/*
 temari/*
 *.sqlite
+*.log
