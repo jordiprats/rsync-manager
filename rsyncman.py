@@ -174,7 +174,14 @@ try:
 except:
     logdir=os.path.dirname(os.path.abspath(config_file))
 
-logFile = "{0}/{1}-{2}.log".format(logdir, 'rsyncman', datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d-%H%M%S'))
+ts = time.time()
+
+logFile = "{0}/{1}/{2}-{3}.log".format(logdir, datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d'), 'rsyncman', datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d-%H%M%S'))
+
+current_day_dirname = os.path.dirname(logFile)
+
+os.mkdir(current_day_dirname)
+
 fileHandler = logging.FileHandler(logFile)
 fileHandler.setFormatter(logFormatter)
 rootLogger.addHandler(fileHandler)
