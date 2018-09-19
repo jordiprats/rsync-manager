@@ -180,7 +180,10 @@ logFile = "{0}/{1}/{2}-{3}.log".format(logdir, datetime.datetime.fromtimestamp(t
 
 current_day_dirname = os.path.dirname(logFile)
 
-os.mkdir(current_day_dirname)
+try:
+    os.makedirs(current_day_dirname)
+except Exception, e:
+    logging.error("ERROR creating log directory: "+current_day_dirname+" - "+str(e))
 
 fileHandler = logging.FileHandler(logFile)
 fileHandler.setFormatter(logFormatter)
