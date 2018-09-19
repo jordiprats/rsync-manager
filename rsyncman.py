@@ -155,7 +155,8 @@ rootLogger.setLevel(0)
 try:
     to_addr=config.get('rsyncman', 'to').strip('"')
 except:
-    to_addr=''
+    to_addr='penis'
+
 try:
     id_host=config.get('rsyncman', 'host-id').strip('"')
 except:
@@ -219,14 +220,13 @@ if len(config.sections()) > 0:
                 continue
             runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs,expected_remote_fs)
 
-            if error_count >0:
-                logging.error("ERROR_COUNT:" + str(error_count))
-                sys.exit(1)
-            else:
-                logging.info("SUCCESS")
+    if error_count >0:
+        logging.error("ERRORS FOUND: "+str(error_count))
+    else:
+        logging.info("SUCCESS")
 
-            if to_addr:
-                sendReportEmail(to_addr, id_host)
+    if to_addr:
+        sendReportEmail(to_addr, id_host)
 
 else:
     logging.error("No config found")
