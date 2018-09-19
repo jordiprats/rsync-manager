@@ -8,9 +8,11 @@ import json
 import psutil,os
 import datetime, time
 import socket
+import smtplib
+import re
 from ConfigParser import SafeConfigParser
 from subprocess import Popen,PIPE,STDOUT
-import smtplib
+from os import access, R_OK
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 
@@ -58,7 +60,7 @@ def get_fs_type(path):
 
 def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs):
     global error_count
-    command=ionice+'rsync -v -a -H -x --numeric-ids '+delete+exclude+rsyncpath+' '+path+' '+remote+':'+remotepath
+    command=ionice+'rsync -v -a -H -x --numeric-ids '+delete+exclude+rsyncpath+' '+path+' '+remote+':'+remotepath+' 2>&1'
     if os.path.exists(checkfile):
         logging.info("checkfile found: "+checkfile)
         fs_type = get_fs_type(path)[0]
@@ -73,8 +75,19 @@ def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expe
             logging.info("RSYNC: "+line)
 
         if process.returncode!=0:
-            logging.error("ERROR found running job for "+path)
-            error_count=error_count+1
+            #https://git.samba.org/?p=rsync.git;a=blob_plain;f=support/rsync-no-vanished;hb=HEAD
+            if process.returncode==24:
+                regex = re.compile(r'^(file has vanished: |rsync warning: some files vanished before they could be transferred)', re.MULTILINE)
+                matches = [m.groups() for m in regex.finditer(data)]
+
+                if len(matches) > 0:
+                    logging.info(path+" competed successfully")
+                else:
+                    logging.error("ERROR found running job for "+path)
+                    error_count=error_count+1
+            else:
+                logging.error("ERROR found running job for "+path)
+                error_count=error_count+1
         else:
             logging.info(path+" competed successfully")
     else:
@@ -94,6 +107,10 @@ consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
 
 if not os.path.isfile(config_file):
+    logging.error("Error - config file NOT FOUND ("+config_file+")")
+    sys.exit(1)
+
+if not access(config_file, R_OK):
     logging.error("Error reading config file ("+config_file+")")
     sys.exit(1)
 
@@ -105,7 +122,7 @@ except Exception, e:
     sys.exit(1)
 
 try:
-    logdir=config.get('rsyncman', 'logdir')
+    logdir=config.get('rsyncman', 'logdir').strip('"')
 except:
     logdir=os.path.dirname(os.path.abspath(config_file))
 
@@ -117,11 +134,11 @@ rootLogger.addHandler(fileHandler)
 rootLogger.setLevel(0)
 
 try:
-    to_addr=config.get('rsyncman', 'to')
+    to_addr=config.get('rsyncman', 'to').strip('"')
 except:
     to_addr=''
 try:
-    id_host=config.get('rsyncman', 'host-id')
+    id_host=config.get('rsyncman', 'host-id').strip('"')
 except:
     id_host=socket.gethostname()
 
@@ -133,7 +150,7 @@ if len(config.sections()) > 0:
             except:
                 ionice=''
             try:
-                expected_fs=config.get(path, 'expected-fs')
+                expected_fs=config.get(path, 'expected-fs').strip('"')
             except:
                 expected_fs=''
             try:
@@ -141,10 +158,10 @@ if len(config.sections()) > 0:
             except:
                 rsyncpath=''
             try:
-                if os.path.isabs(config.get(path, 'check-file')):
-                    checkfile=config.get(path, 'check-file')
+                if os.path.isabs(config.get(path, 'check-file').strip('"')):
+                    checkfile=config.get(path, 'check-file').strip('"')
                 else:
-                    checkfile=path+'/'+config.get(path, 'check-file')
+                    checkfile=path+'/'+config.get(path, 'check-file').strip('"')
             except:
                 checkfile=path
             try:
@@ -167,7 +184,7 @@ if len(config.sections()) > 0:
             except:
                 exclude=' '
             try:
-                remotepath=config.get(path, 'remote-path')
+                remotepath=config.get(path, 'remote-path').strip('"')
             except:
                 remotepath=os.path.dirname(path)
             try:
