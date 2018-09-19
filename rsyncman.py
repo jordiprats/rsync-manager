@@ -10,14 +10,22 @@ import datetime, time
 import socket
 import smtplib
 import re
+import getopt
 from ConfigParser import SafeConfigParser
 from subprocess import Popen,PIPE,STDOUT
 from os import access, R_OK
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 
-
 error_count=0
+
+def help():
+    print 'Usage: '+sys.argv[0]+' [-c <config file>] [-b]'
+    print ''
+    print '-h,--help print this message'
+    print '-c,--config config file'
+    print '-b,--syncback sync from destination to origin'
+    print ''
 
 def sendReportEmail(to_addr, id_host):
     global error_count
@@ -68,9 +76,14 @@ def get_remote_fs_type(remote, path):
     return data.splitlines()[0]
 
 
-def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs,expected_remote_fs):
+def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs,expected_remote_fs,syncback):
     global error_count
-    command=ionice+'rsync -v -a -H -x --numeric-ids '+delete+exclude+rsyncpath+' '+path+' '+remote+':'+remotepath+' 2>&1'
+    if syncback:
+        basename_path=os.path.basename(path)
+        dirname_path=os.path.dirname(path)
+        command=ionice+'rsync -v -a -H -x --numeric-ids '+delete+exclude+rsyncpath+' '+remote+':'+remotepath+'/'+basename_path+' '+dirname_path+' 2>&1'
+    else:
+        command=ionice+'rsync -v -a -H -x --numeric-ids '+delete+exclude+rsyncpath+' '+path+' '+remote+':'+remotepath+' 2>&1'
     if os.path.exists(checkfile):
         logging.info("checkfile found: "+checkfile)
 
@@ -114,9 +127,25 @@ def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expe
         error_count=error_count+1
 
 try:
-    config_file = sys.argv[1]
-except IndexError:
-    config_file = './rsyncman.config'
+    opts, args = getopt.getopt(sys.argv[1:], "hc:b", ["--help", "--config", "--syncback"])
+except getopt.GetoptError, err:
+    help()
+    sys.exit(3)
+
+config_file = './rsyncman.config'
+syncback = False
+
+for opt, value in opts:
+    if opt in ("-h", "--help"):
+        help()
+        sys.exit(3)
+    elif opt in ("-c", "--config"):
+        config_file = value
+    elif opt in ("-b", "--syncback"):
+        syncback = True
+    else:
+        assert False, "unhandled option"
+        help()
 
 logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 rootLogger = logging.getLogger()
@@ -218,7 +247,7 @@ if len(config.sections()) > 0:
                 logging.error("remote is mandatory, aborting rsync for "+path+" - "+str(e))
                 error_count=error_count+1
                 continue
-            runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs,expected_remote_fs)
+            runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs,expected_remote_fs,syncback)
 
     if error_count >0:
         logging.error("ERRORS FOUND: "+str(error_count))
