@@ -41,6 +41,8 @@ def sendReportEmail(to_addr, id_host):
     server.sendmail(from_addr, to_addr, text)
     server.quit()
 
+    logging.info("sent report to "+to_addr)
+
 # thank god for stackoverflow - https://stackoverflow.com/questions/25283882/determining-the-filesystem-type-from-a-path-in-python
 def get_fs_type(path):
     partition = {}
