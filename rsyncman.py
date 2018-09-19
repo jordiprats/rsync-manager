@@ -97,17 +97,22 @@ if not os.path.isfile(config_file):
     logging.error("Error reading config file ("+config_file+")")
     sys.exit(1)
 
-logFile = "{0}/{1}-{2}.log".format(os.path.dirname(os.path.abspath(config_file)), 'rsyncman', datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d-%H%M%S'))
-fileHandler = logging.FileHandler(logFile)
-fileHandler.setFormatter(logFormatter)
-rootLogger.addHandler(fileHandler)
-
 try:
     config = SafeConfigParser()
     config.read(config_file)
 except Exception, e:
     logging.error("error reading config file - ABORTING - "+str(e))
     sys.exit(1)
+
+try:
+    logdir=config.get('rsyncman', 'logdir')
+except:
+    logdir=os.path.dirname(os.path.abspath(config_file))
+
+logFile = "{0}/{1}-{2}.log".format(logdir, 'rsyncman', datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d-%H%M%S'))
+fileHandler = logging.FileHandler(logFile)
+fileHandler.setFormatter(logFormatter)
+rootLogger.addHandler(fileHandler)
 
 rootLogger.setLevel(0)
 
