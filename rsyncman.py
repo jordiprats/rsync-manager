@@ -58,15 +58,32 @@ def get_fs_type(path):
             return partition[path]
     return ("unkown","none")
 
-def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs):
+def get_remote_fs_type(remote, path):
+    #stat -f -c %T .
+    command='ssh '+remote+' stat -f -c %T '+path+' 2>/dev/null'
+    process = Popen(command,stderr=PIPE,stdout=PIPE,shell=True)
+    data = process.communicate()[0]
+    return data.splitlines()[0]
+
+
+def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs,expected_remote_fs):
     global error_count
     command=ionice+'rsync -v -a -H -x --numeric-ids '+delete+exclude+rsyncpath+' '+path+' '+remote+':'+remotepath+' 2>&1'
     if os.path.exists(checkfile):
         logging.info("checkfile found: "+checkfile)
+
         fs_type = get_fs_type(path)[0]
         if expected_fs and expected_fs != fs_type:
-            logging.error("ABORTING "+path+": expected fs type does not match expected fs - found: "+fs_type+" expected: "+expected_fs)
+            logging.error("ABORTING "+path+": fs type does not match expected fs - found: "+fs_type+" expected: "+expected_fs)
             error_count=error_count+1
+            return
+
+        remote_fs_type = get_remote_fs_type(remote, remotepath)
+        if expected_remote_fs and expected_remote_fs != remote_fs_type:
+            logging.error("ABORTING "+remote+':'+remotepath+": fs type does not match expected fs - found: "+remote_fs_type+" expected: "+expected_remote_fs)
+            error_count=error_count+1
+            return
+
         logging.debug("RSYNC command: "+command)
         process = Popen(command,stderr=PIPE,stdout=PIPE,shell=True)
         data = process.communicate()[0]
@@ -154,6 +171,10 @@ if len(config.sections()) > 0:
             except:
                 expected_fs=''
             try:
+                expected_remote_fs=config.get(path, 'expected-remote-fs').strip('"')
+            except:
+                expected_remote_fs=''
+            try:
                 rsyncpath='--rsync-path="'+config.get(path, 'rsync-path').strip('"')+'"'
             except:
                 rsyncpath=''
@@ -194,7 +215,7 @@ if len(config.sections()) > 0:
                 logging.error("remote is mandatory, aborting rsync for "+path+" - "+str(e))
                 error_count=error_count+1
                 continue
-            runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs)
+            runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs,expected_remote_fs)
 
             if error_count >0:
                 logging.error("ERROR_COUNT:" + str(error_count))
