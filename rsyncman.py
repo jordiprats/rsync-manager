@@ -194,7 +194,7 @@ rootLogger.setLevel(0)
 try:
     to_addr=config.get('rsyncman', 'to').strip('"')
 except:
-    to_addr='penis'
+    to_addr=''
 
 try:
     id_host=config.get('rsyncman', 'host-id').strip('"')
