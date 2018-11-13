@@ -69,11 +69,17 @@ def get_fs_type(path):
     return ("unkown","none")
 
 def get_remote_fs_type(remote, path):
+    global error_count
     #stat -f -c %T .
     command='ssh '+remote+' stat -f -c %T '+path+' 2>/dev/null'
     process = Popen(command,stderr=PIPE,stdout=PIPE,shell=True)
     data = process.communicate()[0]
-    return data.splitlines()[0]
+    if process.wait() != 0:
+        logging.error("ABORTING  - error getting remote fs type")
+        error_count=error_count+1
+        return "undefined"
+    else:
+        return data.splitlines()[0]
 
 
 def runJob(ionice,delete,exclude,rsyncpath,path,remote,remotepath,checkfile,expected_fs,expected_remote_fs,syncback):
