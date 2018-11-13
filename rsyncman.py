@@ -77,7 +77,7 @@ def get_remote_fs_type(remote, path):
     if process.wait() != 0:
         logging.error("ABORTING  - error getting remote fs type")
         error_count=error_count+1
-        return "undefined"
+        return "unkown"
     else:
         return data.splitlines()[0]
 
