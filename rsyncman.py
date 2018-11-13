@@ -37,9 +37,9 @@ def sendReportEmail(to_addr, id_host):
     msg['From'] = from_addr
     msg['To'] = to_addr
     if error_count > 0:
-        msg['Subject'] = id_host+"-RSYNCMAN-OK"
-    else:
         msg['Subject'] = id_host+"-RSYNCMAN-ERROR"
+    else:
+        msg['Subject'] = id_host+"-RSYNCMAN-OK"
 
     body = "please check "+logFile+" on "+socket.gethostname()
     msg.attach(MIMEText(body, 'plain'))
@@ -54,7 +54,7 @@ def sendReportEmail(to_addr, id_host):
 # thank god for stackoverflow - https://stackoverflow.com/questions/25283882/determining-the-filesystem-type-from-a-path-in-python
 def get_fs_type(path):
     partition = {}
-    for part in psutil.disk_partitions():
+    for part in psutil.disk_partitions(True):
         partition[part.mountpoint] = (part.fstype, part.device)
     if path in partition:
         return partition[path]
@@ -183,7 +183,7 @@ current_day_dirname = os.path.dirname(logFile)
 try:
     os.makedirs(current_day_dirname)
 except Exception, e:
-    logging.error("ERROR creating log directory: "+current_day_dirname+" - "+str(e))
+    logging.debug("WARNING - error creating log directory: "+current_day_dirname+" - "+str(e))
 
 fileHandler = logging.FileHandler(logFile)
 fileHandler.setFormatter(logFormatter)
